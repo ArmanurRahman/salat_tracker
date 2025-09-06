@@ -1,7 +1,9 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { CalculationMethod, Coordinates, PrayerTimes } from 'adhan';
 import Geolocation from '@react-native-community/geolocation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
+import SQLite from 'react-native-sqlite-storage';
+
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +19,14 @@ import {
 } from 'react-native';
 
 const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+
+const db = SQLite.openDatabase(
+  { name: 'salatTracker.db', location: 'default' },
+  () => {},
+  error => {
+    console.log(error);
+  },
+);
 
 async function requestLocationPermission() {
   if (Platform.OS === 'android') {
@@ -35,6 +45,32 @@ async function requestLocationPermission() {
   }
   return true; // iOS permissions handled differently
 }
+
+function setReminderInDB(prayer: string, time: Date, enabled: boolean) {
+  // Format time as "HH:mm" in local time
+  const timeStr = time.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  db.transaction(tx => {
+    // Try to update first
+    tx.executeSql(
+      `UPDATE prayer_reminders SET time = ?, enabled = ? WHERE prayer = ?`,
+      [timeStr, enabled ? 1 : 0, prayer],
+      (_, result) => {
+        if (result.rowsAffected === 0) {
+          // If no row updated, insert new row
+          tx.executeSql(
+            `INSERT INTO prayer_reminders (prayer, time, enabled) VALUES (?, ?, ?)`,
+            [prayer, timeStr, enabled ? 1 : 0],
+          );
+        }
+      },
+    );
+  });
+}
+
 export default function RemindersScreen() {
   const [reminders, setReminders] = useState<{
     [prayer: string]: { enabled: boolean; time: Date };
@@ -44,7 +80,7 @@ export default function RemindersScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchLocation() {
+    async function fetchLocationAndInitReminders() {
       setLoading(true);
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
@@ -52,7 +88,6 @@ export default function RemindersScreen() {
         setLoading(false);
         return;
       }
-      Geolocation.getCurrentPosition;
       Geolocation.getCurrentPosition(
         loc => {
           const coordinates = new Coordinates(
@@ -69,15 +104,30 @@ export default function RemindersScreen() {
             Maghrib: times.maghrib,
             Isha: times.isha,
           };
-          setReminders(
-            prayers.reduce((acc, prayer) => {
-              acc[prayer] = {
-                enabled: false,
-                time: prayerTimes[prayer],
-              };
-              return acc;
-            }, {} as { [prayer: string]: { enabled: boolean; time: Date } }),
-          );
+          // Only set reminders for prayers not already loaded from DB
+          setReminders(prev => {
+            // If prev is null, fallback to location for all
+            if (!prev) {
+              return prayers.reduce((acc, prayer) => {
+                acc[prayer] = {
+                  enabled: false,
+                  time: prayerTimes[prayer],
+                };
+                return acc;
+              }, {} as { [prayer: string]: { enabled: boolean; time: Date } });
+            }
+            // Fill in missing prayers from location
+            const filled = { ...prev };
+            for (const prayer of prayers) {
+              if (!filled[prayer]) {
+                filled[prayer] = {
+                  enabled: false,
+                  time: prayerTimes[prayer],
+                };
+              }
+            }
+            return filled;
+          });
           setLoading(false);
         },
         error => {
@@ -88,17 +138,44 @@ export default function RemindersScreen() {
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
       );
     }
-    fetchLocation();
+    fetchLocationAndInitReminders();
+  }, []);
 
-    // Geolocation.requestAuthorization();
+  useLayoutEffect(() => {
+    db.transaction(tx => {
+      tx.executeSql(
+        `SELECT prayer, time, enabled FROM prayer_reminders`,
+        [],
+        (_, { rows }) => {
+          const reminderObj: {
+            [prayer: string]: { enabled: boolean; time: Date };
+          } = {};
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows.item(i);
+            // Parse time as local "HH:mm"
+            const [hour, minute] = row.time.split(':');
+            const now = new Date();
+            now.setHours(Number(hour), Number(minute), 0, 0);
+            reminderObj[row.prayer] = {
+              enabled: !!row.enabled,
+              time: new Date(now),
+            };
+          }
+          // Ensure all prayers are present (missing ones will be filled by location effect)
+          setReminders(reminderObj);
+        },
+      );
+    });
   }, []);
 
   const handleToggle = (prayer: string) => {
     if (!reminders) return;
+    const enabled = !reminders[prayer].enabled;
     setReminders(r => ({
       ...r!,
-      [prayer]: { ...r![prayer], enabled: !r![prayer].enabled },
+      [prayer]: { ...r![prayer], enabled },
     }));
+    setReminderInDB(prayer, reminders[prayer].time, enabled);
   };
 
   const handleTimeChange = (event: any, selectedDate?: Date | undefined) => {
@@ -108,6 +185,11 @@ export default function RemindersScreen() {
           ...r!,
           [pickerPrayer]: { ...r![pickerPrayer], time: selectedDate },
         }));
+        setReminderInDB(
+          pickerPrayer,
+          selectedDate,
+          reminders[pickerPrayer].enabled,
+        );
       }
       setPickerPrayer(null);
     } else {
@@ -121,6 +203,7 @@ export default function RemindersScreen() {
         ...r!,
         [pickerPrayer]: { ...r![pickerPrayer], time: tempTime },
       }));
+      setReminderInDB(pickerPrayer, tempTime, reminders[pickerPrayer].enabled);
     }
     setPickerPrayer(null);
     setTempTime(null);

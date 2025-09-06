@@ -38,6 +38,29 @@ function App() {
     );
   }, []);
 
+  useEffect(() => {
+    const db = SQLite.openDatabase(
+      { name: 'salatTracker.db', location: 'default' },
+      () => {
+        // Success callback
+        db.transaction(tx => {
+          // tx.executeSql(`DROP TABLE IF EXISTS prayer_log;`);
+          tx.executeSql(
+            `CREATE TABLE IF NOT EXISTS prayer_reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prayer TEXT NOT NULL,
+            time TEXT,
+            enabled INTEGER NOT NULL DEFAULT 0
+          );`,
+          );
+        });
+      },
+      error => {
+        console.log('SQLite error:', error);
+      },
+    );
+  }, []);
+
   return (
     <SafeAreaProvider>
       <NavigationContainer>
