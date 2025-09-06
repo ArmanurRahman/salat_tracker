@@ -1,18 +1,91 @@
 import { LinearGradient } from 'react-native-linear-gradient';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
+import SQLite from 'react-native-sqlite-storage';
+
+const db = SQLite.openDatabase(
+  { name: 'salatTracker.db', location: 'default' },
+  () => {},
+  error => {
+    console.log(error);
+  },
+);
+
+const getToday = () => new Date().toISOString().slice(0, 10);
 
 const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
 export default function DailyPrayerLogScreen() {
   const [completed, setCompleted] = useState<{ [key: string]: boolean }>({});
 
-  const togglePrayer = (prayer: string) => {
-    setCompleted(prev => ({ ...prev, [prayer]: !prev[prayer] }));
-  };
-
   const completedCount = prayers.filter(p => completed[p]).length;
+
+  useEffect(() => {
+    const today = getToday();
+    db.transaction(tx => {
+      tx.executeSql(
+        `SELECT * FROM prayer_log WHERE date = ?`,
+        [today],
+        (_, { rows }) => {
+          console.log('Fetched prayer log for today:', rows);
+          if (rows.length > 0) {
+            const row = rows.item(0);
+            setCompleted({
+              Fajr: !!row.Fajr,
+              Dhuhr: !!row.Dhuhr,
+              Asr: !!row.Asr,
+              Maghrib: !!row.Maghrib,
+              Isha: !!row.Isha,
+            });
+          } else {
+            setCompleted({});
+          }
+        },
+      );
+    });
+  }, []);
+
+  function insertOrUpdatePrayer(prayer: string, completed: boolean) {
+    try {
+      const today = getToday();
+      db.transaction(tx => {
+        // Try to update first
+        tx.executeSql(
+          `UPDATE prayer_log SET ${prayer.toLowerCase()} = ? WHERE date = ?`,
+          [completed ? 1 : 0, today],
+          (_, result) => {
+            console.log('Update result:', result);
+            if (result.rowsAffected === 0) {
+              // If no row updated, insert new row
+              tx.executeSql(
+                `INSERT INTO prayer_log (date, Fajr, Dhuhr, Asr, Maghrib, Isha)
+             VALUES (?, 0, 0, 0, 0, 0)`,
+                [today],
+                () => {
+                  //   Now update the prayer
+                  tx.executeSql(
+                    `UPDATE prayer_log SET ${prayer.toLowerCase()} = ? WHERE date = ?`,
+                    [completed ? 1 : 0, today],
+                  );
+                },
+              );
+            }
+          },
+        );
+      });
+    } catch (e) {
+      console.error('Error inserting/updating prayer:', e);
+    }
+  }
+
+  const togglePrayer = (prayer: string) => {
+    setCompleted(prev => {
+      const newState = { ...prev, [prayer]: !prev[prayer] };
+      insertOrUpdatePrayer(prayer, newState[prayer]);
+      return newState;
+    });
+  };
 
   return (
     <LinearGradient
