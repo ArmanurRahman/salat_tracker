@@ -1,37 +1,48 @@
 import LinearGradient from 'react-native-linear-gradient';
-import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Calendar } from 'react-native-calendars';
+import SQLite from 'react-native-sqlite-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const db = SQLite.openDatabase(
+  { name: 'salatTracker.db', location: 'default' },
+  () => {},
+  error => {
+    console.log(error);
+  },
+);
 
 export default function ProgressCalendarScreen() {
   // Example data: which prayers were completed for each date
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [prayerData] = useState<{
+  const [prayerData, setPrayerData] = useState<{
     [date: string]: { [prayer: string]: boolean };
-  }>({
-    '2025-08-25': {
-      Fajr: true,
-      Dhuhr: true,
-      Asr: false,
-      Maghrib: true,
-      Isha: true,
-    },
-    '2025-08-26': {
-      Fajr: false,
-      Dhuhr: true,
-      Asr: true,
-      Maghrib: true,
-      Isha: false,
-    },
-    '2025-08-27': {
-      Fajr: true,
-      Dhuhr: true,
-      Asr: true,
-      Maghrib: true,
-      Isha: true,
-    },
-  });
+  }>({});
   const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+
+  useEffect(() => {
+    db.transaction(tx => {
+      tx.executeSql(
+        `SELECT date, Fajr, Dhuhr, Asr, Maghrib, Isha FROM prayer_log ORDER BY date ASC`,
+        [],
+        (_, { rows }) => {
+          const data: { [date: string]: { [prayer: string]: boolean } } = {};
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows.item(i);
+            data[row.date] = {
+              Fajr: !!row.Fajr,
+              Dhuhr: !!row.Dhuhr,
+              Asr: !!row.Asr,
+              Maghrib: !!row.Maghrib,
+              Isha: !!row.Isha,
+            };
+          }
+          setPrayerData(data);
+        },
+      );
+    });
+  }, []);
 
   // Mark completed days in the calendar
   const markedDates = Object.fromEntries(
@@ -73,133 +84,146 @@ export default function ProgressCalendarScreen() {
       ];
     }),
   );
-
+  const insets = useSafeAreaInsets();
   return (
-    <LinearGradient
-      colors={['#e0eafc', '#cfdef3', '#f9f6f7']}
-      style={styles.bg}
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#f9f6f7',
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
+      }}
     >
-      <View style={styles.overlay}>
-        <Text style={styles.title}>📅 Progress Calendar</Text>
-        <View style={styles.card}>
-          <Calendar
-            style={styles.calendar}
-            markedDates={markedDates}
-            markingType="custom"
-            onDayPress={day => setSelectedDate(day.dateString)}
-            theme={{
-              todayTextColor: '#f76d1a',
-              selectedDayBackgroundColor: '#b2f7b8',
-              arrowColor: '#2d3a4b',
-            }}
-          />
-          {selectedDate && prayerData[selectedDate] && (
-            <View style={styles.prayerStatusBoxModern}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: 8,
-                }}
-              >
-                <Text style={styles.prayerStatusIcon}>🕋</Text>
-                <Text style={styles.prayerStatusTitleModern}>
-                  Prayers on {selectedDate}
-                </Text>
-              </View>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: 8,
-                }}
-              >
-                {prayers.map(prayer => {
-                  const done = prayerData[selectedDate][prayer];
-                  return (
-                    <View
-                      key={prayer}
-                      style={done ? styles.chipDone : styles.chipMissed}
-                    >
-                      <Text
-                        style={
-                          done ? styles.chipTextDone : styles.chipTextMissed
-                        }
-                      >
-                        {done ? '✅' : '❌'} {prayer}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-        </View>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginTop: 12,
-          }}
+      <ScrollView style={{ flex: 1 }}>
+        <LinearGradient
+          colors={['#e0eafc', '#cfdef3', '#f9f6f7']}
+          style={styles.bg}
         >
-          <View
-            style={{
-              width: 12,
-              height: 12,
-              backgroundColor: '#d0f5e8',
-              borderRadius: 3,
-              marginRight: 4,
-              borderWidth: 1,
-              borderColor: '#4caf50',
-            }}
-          />
-          <Text
-            style={{
-              fontSize: 13,
-              color: '#388e3c',
-              marginRight: 12,
-            }}
-          >
-            All done
-          </Text>
-          <View
-            style={{
-              width: 12,
-              height: 12,
-              backgroundColor: '#fff9c4',
-              borderRadius: 3,
-              marginRight: 4,
-              borderWidth: 1,
-              borderColor: '#fbc02d',
-            }}
-          />
-          <Text
-            style={{
-              fontSize: 13,
-              color: '#bfa600',
-              marginRight: 12,
-            }}
-          >
-            Some missed
-          </Text>
-          <View
-            style={{
-              width: 12,
-              height: 12,
-              backgroundColor: '#ffebee',
-              borderRadius: 3,
-              marginRight: 4,
-              borderWidth: 1,
-              borderColor: '#f44336',
-            }}
-          />
-          <Text style={{ fontSize: 13, color: '#d32f2f' }}>All missed</Text>
-        </View>
-        <Text style={styles.tip}>
-          Tap a day to see details. Orange border = today.
-        </Text>
-      </View>
-    </LinearGradient>
+          <View style={styles.overlay}>
+            <Text style={styles.title}>📅 Progress Calendar</Text>
+            <View style={styles.card}>
+              <Calendar
+                style={styles.calendar}
+                markedDates={markedDates}
+                markingType="custom"
+                onDayPress={day => setSelectedDate(day.dateString)}
+                theme={{
+                  todayTextColor: '#f76d1a',
+                  selectedDayBackgroundColor: '#b2f7b8',
+                  arrowColor: '#2d3a4b',
+                }}
+              />
+              {selectedDate && prayerData[selectedDate] && (
+                <View style={styles.prayerStatusBoxModern}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text style={styles.prayerStatusIcon}>🕋</Text>
+                    <Text style={styles.prayerStatusTitleModern}>
+                      Prayers on {selectedDate}
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                    }}
+                  >
+                    {prayers.map(prayer => {
+                      const done = prayerData[selectedDate][prayer];
+                      return (
+                        <View
+                          key={prayer}
+                          style={done ? styles.chipDone : styles.chipMissed}
+                        >
+                          <Text
+                            style={
+                              done ? styles.chipTextDone : styles.chipTextMissed
+                            }
+                          >
+                            {done ? '✅' : '❌'} {prayer}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 12,
+              }}
+            >
+              <View
+                style={{
+                  width: 12,
+                  height: 12,
+                  backgroundColor: '#d0f5e8',
+                  borderRadius: 3,
+                  marginRight: 4,
+                  borderWidth: 1,
+                  borderColor: '#4caf50',
+                }}
+              />
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: '#388e3c',
+                  marginRight: 12,
+                }}
+              >
+                All done
+              </Text>
+              <View
+                style={{
+                  width: 12,
+                  height: 12,
+                  backgroundColor: '#fff9c4',
+                  borderRadius: 3,
+                  marginRight: 4,
+                  borderWidth: 1,
+                  borderColor: '#fbc02d',
+                }}
+              />
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: '#bfa600',
+                  marginRight: 12,
+                }}
+              >
+                Some missed
+              </Text>
+              <View
+                style={{
+                  width: 12,
+                  height: 12,
+                  backgroundColor: '#ffebee',
+                  borderRadius: 3,
+                  marginRight: 4,
+                  borderWidth: 1,
+                  borderColor: '#f44336',
+                }}
+              />
+              <Text style={{ fontSize: 13, color: '#d32f2f' }}>All missed</Text>
+            </View>
+            <Text style={styles.tip}>
+              Tap a day to see details. Orange border = today.
+            </Text>
+          </View>
+        </LinearGradient>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -231,16 +255,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     width: 340,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
     marginBottom: 18,
   },
   calendar: {
     borderRadius: 12,
     marginBottom: 16,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
   },
   prayerStatusBoxModern: {
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#f8fafc',
     borderRadius: 16,
     padding: 18,

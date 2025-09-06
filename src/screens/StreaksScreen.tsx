@@ -1,8 +1,18 @@
 import LinearGradient from 'react-native-linear-gradient';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import SQLite from 'react-native-sqlite-storage';
+
+const db = SQLite.openDatabase(
+  { name: 'salatTracker.db', location: 'default' },
+  () => {},
+  error => {
+    console.log(error);
+  },
+);
 
 const styles = StyleSheet.create({
+  // ...existing styles...
   bg: {
     flex: 1,
     justifyContent: 'center',
@@ -62,10 +72,81 @@ const styles = StyleSheet.create({
   },
 });
 
+function areAllPrayersCompleted(row) {
+  return !!row.Fajr && !!row.Dhuhr && !!row.Asr && !!row.Maghrib && !!row.Isha;
+}
+
+function getDateList(rows) {
+  // Returns sorted array of dates (YYYY-MM-DD) with all prayers completed
+  const completedDates = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows.item(i);
+    if (areAllPrayersCompleted(row)) {
+      completedDates.push(row.date);
+    }
+  }
+  return completedDates.sort();
+}
+
+function calculateStreaks(completedDates) {
+  if (completedDates.length === 0) return { current: 0, longest: 0 };
+
+  // Convert to Date objects
+  const dates = completedDates.map(d => new Date(d));
+  dates.sort((a, b) => a - b);
+
+  let longest = 1;
+  let current = 1;
+  let maxStreak = 1;
+
+  // Find longest streak
+  for (let i = 1; i < dates.length; i++) {
+    const diff = (dates[i] - dates[i - 1]) / (1000 * 60 * 60 * 24);
+    if (diff === 1) {
+      current += 1;
+      if (current > longest) longest = current;
+    } else {
+      current = 1;
+    }
+    if (longest > maxStreak) maxStreak = longest;
+  }
+
+  // Find current streak (ending today)
+  let currentStreak = 0;
+  for (let i = dates.length - 1; i >= 0; i--) {
+    const dateStr = dates[i].toISOString().slice(0, 10);
+    const expectedDate = new Date();
+    expectedDate.setDate(expectedDate.getDate() - (dates.length - 1 - i));
+    const expectedStr = expectedDate.toISOString().slice(0, 10);
+    if (dateStr === expectedStr) {
+      currentStreak += 1;
+    } else {
+      break;
+    }
+  }
+
+  return { current: currentStreak, longest: maxStreak };
+}
+
 export default function StreaksScreen() {
-  // Placeholder values
-  const currentStreak = 5;
-  const longestStreak = 12;
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [longestStreak, setLongestStreak] = useState(0);
+
+  const today = new Date().toISOString().slice(0, 10);
+  useEffect(() => {
+    db.transaction(tx => {
+      tx.executeSql(
+        `SELECT date, Fajr, Dhuhr, Asr, Maghrib, Isha FROM prayer_log ORDER BY date ASC`,
+        [],
+        (_, { rows }) => {
+          const completedDates = getDateList(rows);
+          const streaks = calculateStreaks(completedDates);
+          setCurrentStreak(streaks.current);
+          setLongestStreak(streaks.longest);
+        },
+      );
+    });
+  }, [today]); // Recalculate streaks if the day changes
 
   return (
     <LinearGradient
