@@ -49,6 +49,7 @@ export default function DailyPrayerLogScreen() {
   function insertOrUpdatePrayer(prayer: string, completed: boolean) {
     try {
       const today = getToday();
+      console.log('Inserting/updating prayer:', prayer, completed, today);
       db.transaction(tx => {
         // Try to update first
         tx.executeSql(
@@ -57,6 +58,7 @@ export default function DailyPrayerLogScreen() {
           (_, result) => {
             console.log('Update result:', result);
             if (result.rowsAffected === 0) {
+              console.log('No existing row for today, inserting new row');
               // If no row updated, insert new row
               tx.executeSql(
                 `INSERT INTO prayer_log (date, Fajr, Dhuhr, Asr, Maghrib, Isha)

@@ -247,7 +247,6 @@ const styles = StyleSheet.create({
     shadowColor: '#1976d2',
     shadowOpacity: 0.12,
     shadowRadius: 16,
-    elevation: 8,
     marginBottom: 18,
     alignItems: 'center',
   },
@@ -256,7 +255,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 4,
     backgroundColor: 'transparent',
   },
   prayerStatusBoxModern: {
