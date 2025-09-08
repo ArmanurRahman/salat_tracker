@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
 });
 
 const getTabBarLabelStyle = (focused: boolean): StyleProp<TextStyle> => ({
-  fontSize: focused ? 15 : 13,
+  fontSize: 12,
   fontWeight: focused ? 700 : 500,
   color: focused ? '#1976d2' : '#6b7a8f',
   marginBottom: Platform.OS === 'ios' ? 0 : 4,
