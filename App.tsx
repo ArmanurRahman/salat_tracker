@@ -8,6 +8,7 @@ import Navigator from './src/navigation/navigator';
 import { NavigationContainer } from '@react-navigation/native';
 import { useEffect } from 'react';
 import SQLite from 'react-native-sqlite-storage';
+import PushNotification from 'react-native-push-notification';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -58,6 +59,19 @@ function App() {
       error => {
         console.log('SQLite error:', error);
       },
+    );
+  }, []);
+
+  useEffect(() => {
+    PushNotification.createChannel(
+      {
+        channelId: 'prayer-reminders',
+        channelName: 'Prayer Reminders',
+        channelDescription: 'Reminders for daily prayers',
+        importance: 4,
+        vibrate: true,
+      },
+      created => console.log(`createChannel returned '${created}'`),
     );
   }, []);
 

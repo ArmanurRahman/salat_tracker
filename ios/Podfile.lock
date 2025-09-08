@@ -2372,6 +2372,8 @@ PODS:
     - React-perflogger (= 0.81.1)
     - React-utils (= 0.81.1)
     - SocketRocket
+  - RNCPushNotificationIOS (1.11.0):
+    - React-Core
   - RNDateTimePicker (8.4.4):
     - boost
     - DoubleConversion
@@ -2566,6 +2568,7 @@ DEPENDENCIES:
   - ReactAppDependencyProvider (from `build/generated/ios`)
   - ReactCodegen (from `build/generated/ios`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - "RNCPushNotificationIOS (from `../node_modules/@react-native-community/push-notification-ios`)"
   - "RNDateTimePicker (from `../node_modules/@react-native-community/datetimepicker`)"
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
@@ -2726,6 +2729,8 @@ EXTERNAL SOURCES:
     :path: build/generated/ios
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  RNCPushNotificationIOS:
+    :path: "../node_modules/@react-native-community/push-notification-ios"
   RNDateTimePicker:
     :path: "../node_modules/@react-native-community/datetimepicker"
   RNScreens:
@@ -2810,6 +2815,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 448b422f8af1dedf81374eacc90a15439a0ed7f5
   ReactCodegen: 3baedb0c33f963250c866151b825a3c5194b12f1
   ReactCommon: e897f9a1b4afab370cfefaaf5fb3c80371bc3937
+  RNCPushNotificationIOS: 64218f3c776c03d7408284a819b2abfda1834bc8
   RNDateTimePicker: c4a42c6a77d474f05162d61a4ab4253d13008277
   RNScreens: 5c7f22b19ee2e900e5de2c578471aeb153d1e502
   RNVectorIcons: 6acc19c833be864e9c70894e101a587fe491150a

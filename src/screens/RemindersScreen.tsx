@@ -17,6 +17,11 @@ import {
   View,
   PermissionsAndroid,
 } from 'react-native';
+import {
+  requestNotificationPermission,
+  schedulePrayerNotification,
+} from '../utils/notification';
+import PushNotification from 'react-native-push-notification';
 
 const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
@@ -70,7 +75,15 @@ function setReminderInDB(prayer: string, time: Date, enabled: boolean) {
     );
   });
 }
-
+function rescheduleEnabledPrayerNotifications(reminders: {
+  [prayer: string]: { enabled: boolean; time: Date };
+}) {
+  prayers.forEach(prayer => {
+    if (reminders[prayer]?.enabled) {
+      schedulePrayerNotification(prayer, reminders[prayer].time);
+    }
+  });
+}
 export default function RemindersScreen() {
   const [reminders, setReminders] = useState<{
     [prayer: string]: { enabled: boolean; time: Date };
@@ -168,7 +181,7 @@ export default function RemindersScreen() {
     });
   }, []);
 
-  const handleToggle = (prayer: string) => {
+  const handleToggle = async (prayer: string) => {
     if (!reminders) return;
     const enabled = !reminders[prayer].enabled;
     setReminders(r => ({
@@ -176,15 +189,48 @@ export default function RemindersScreen() {
       [prayer]: { ...r![prayer], enabled },
     }));
     setReminderInDB(prayer, reminders[prayer].time, enabled);
+
+    if (enabled) {
+      const permissionGranted = await requestNotificationPermission();
+      if (permissionGranted) {
+        schedulePrayerNotification(prayer, reminders[prayer].time);
+      } else {
+        Alert.alert(
+          'Notification permission denied',
+          'Please enable notifications in settings to receive reminders.',
+        );
+      }
+    } else {
+      PushNotification.cancelAllLocalNotifications();
+      setTimeout(() => {
+        rescheduleEnabledPrayerNotifications({
+          ...reminders,
+          [prayer]: { ...reminders[prayer], enabled: false },
+        });
+      }, 500);
+    }
   };
 
   const handleTimeChange = (event: any, selectedDate?: Date | undefined) => {
     if (Platform.OS === 'android') {
-      if (pickerPrayer && selectedDate && reminders) {
-        setReminders(r => ({
-          ...r!,
-          [pickerPrayer]: { ...r![pickerPrayer], time: selectedDate },
-        }));
+      if (
+        event.type === 'set' &&
+        pickerPrayer &&
+        selectedDate &&
+        reminders &&
+        selectedDate instanceof Date
+      ) {
+        setReminders(r => {
+          const updated = {
+            ...r!,
+            [pickerPrayer]: { ...r![pickerPrayer], time: selectedDate },
+          };
+          PushNotification.cancelAllLocalNotifications();
+          setTimeout(() => {
+            rescheduleEnabledPrayerNotifications(updated);
+          }, 500);
+          return updated;
+        });
         setReminderInDB(
           pickerPrayer,
           selectedDate,
@@ -199,12 +245,20 @@ export default function RemindersScreen() {
 
   const handleDone = () => {
     if (pickerPrayer && tempTime && reminders) {
-      setReminders(r => ({
-        ...r!,
-        [pickerPrayer]: { ...r![pickerPrayer], time: tempTime },
-      }));
-      setReminderInDB(pickerPrayer, tempTime, reminders[pickerPrayer].enabled);
+      setReminders(r => {
+        const updated = {
+          ...r!,
+          [pickerPrayer]: { ...r![pickerPrayer], time: tempTime },
+        };
+        setReminderInDB(pickerPrayer, tempTime, updated[pickerPrayer].enabled);
+        PushNotification.cancelAllLocalNotifications();
+        setTimeout(() => {
+          rescheduleEnabledPrayerNotifications(updated);
+        }, 500);
+        return updated;
+      });
     }
+
     setPickerPrayer(null);
     setTempTime(null);
   };
@@ -286,35 +340,40 @@ export default function RemindersScreen() {
           />
         </View>
       ))}
-      <Modal
-        visible={!!pickerPrayer}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPickerPrayer(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              Select Time for {pickerPrayer}
-            </Text>
-            {pickerPrayer && (
+      {pickerPrayer && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={tempTime || reminders[pickerPrayer].time}
+          mode="time"
+          is24Hour={false}
+          display="default"
+          onChange={handleTimeChange}
+          style={{ backgroundColor: '#fff' }}
+        />
+      )}
+      {Platform.OS === 'ios' && pickerPrayer && (
+        <Modal
+          visible={!!pickerPrayer}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPickerPrayer(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
               <DateTimePicker
                 value={tempTime || reminders[pickerPrayer].time}
                 mode="time"
                 is24Hour={false}
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                display="spinner"
                 onChange={handleTimeChange}
-                style={{ backgroundColor: '#fff' }}
               />
-            )}
-            {Platform.OS === 'ios' && (
               <Pressable style={styles.closeBtn} onPress={handleDone}>
                 <Text style={styles.closeBtnText}>Done</Text>
               </Pressable>
-            )}
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
+
       <Text style={styles.tip}>
         Enable and set a time to receive a notification for each prayer.
       </Text>

@@ -2,9 +2,10 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
+import UserNotifications
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
   var window: UIWindow?
 
   var reactNativeDelegate: ReactNativeDelegate?
@@ -28,8 +29,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       in: window,
       launchOptions: launchOptions
     )
-
+    // Request notification permissions
+    UNUserNotificationCenter.current().delegate = self
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+      if granted {
+        print("Notification permission granted.")
+      } else if let error = error {
+        print("Notification permission error: \(error)")
+      }
+    }
     return true
+  }
+  func userNotificationCenter(_ center: UNUserNotificationCenter,
+                             willPresent notification: UNNotification,
+                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    completionHandler([.alert, .sound, .badge])
   }
 }
 
