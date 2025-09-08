@@ -98,6 +98,16 @@ export default function RemindersScreen() {
       const hasPermission = await requestLocationPermission();
       if (!hasPermission) {
         Alert.alert('Permission to access location was denied');
+        // Set default reminders if permission denied
+        setReminders(
+          prayers.reduce((acc, prayer) => {
+            acc[prayer] = {
+              enabled: false,
+              time: new Date(), // Default to current time
+            };
+            return acc;
+          }, {} as { [prayer: string]: { enabled: boolean; time: Date } }),
+        );
         setLoading(false);
         return;
       }
@@ -146,9 +156,19 @@ export default function RemindersScreen() {
         error => {
           console.error('Error fetching location:', error);
           Alert.alert('Could not fetch location');
+          // Set default reminders if location fetch fails
+          setReminders(
+            prayers.reduce((acc, prayer) => {
+              acc[prayer] = {
+                enabled: false,
+                time: new Date(), // Default to current time
+              };
+              return acc;
+            }, {} as { [prayer: string]: { enabled: boolean; time: Date } }),
+          );
           setLoading(false);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+        { enableHighAccuracy: false, timeout: 30000, maximumAge: 10000 },
       );
     }
     fetchLocationAndInitReminders();
